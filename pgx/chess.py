@@ -186,17 +186,15 @@ class Action:
           - https://github.com/LeelaChessZero/lc0/issues/637
           - https://github.com/LeelaChessZero/lc0/pull/712
         """
-        from_, plane = label // 73, label % 73
+        from_, to_ = label // 64, label % 64
         return Action(  # type: ignore
             from_=from_,
-            to=TO_MAP[from_, plane],  # -1 if impossible move
-            underpromotion=jax.lax.select(plane >= 9, jnp.int32(-1), jnp.int32(plane // 3)),
+            to=to_,  # -1 if impossible move
+            underpromotion=jnp.int32(-1), # TODO support underpromotion
         )
 
     def _to_label(self):
-        plane = PLANE_MAP[self.from_, self.to]
-        # plane = jax.lax.select(self.underpromotion >= 0, ..., plane)
-        return jnp.int32(self.from_) * 73 + jnp.int32(plane)
+        return jnp.int32(self.from_) * 64 + jnp.int32(self.to)
 
 
 class Chess(core.Env):
@@ -523,7 +521,7 @@ def _legal_action_mask(state):
             return ~_is_checking(_flip(_apply_move(state, Action._from_label(label))))
 
         ok &= ~_is_checking(_flip(state))
-        ok &= is_ok(jnp.int32([2366, 2367])).all()
+        ok &= is_ok(jnp.int32([2088, 2096])).all()
 
         return ok
 
@@ -540,26 +538,26 @@ def _legal_action_mask(state):
             return ~_is_checking(_flip(_apply_move(state, Action._from_label(label))))
 
         ok &= ~_is_checking(_flip(state))
-        ok &= is_ok(jnp.int32([2364, 2365])).all()
+        ok &= is_ok(jnp.int32([2064, 2072])).all()
 
         return ok
 
     actions = legal_norml_moves(state._possible_piece_positions[0]).flatten()  # include -1
     # +1 is to avoid setting True to the last element
-    mask = jnp.zeros(64 * 73 + 1, dtype=jnp.bool_)
+    mask = jnp.zeros(64 * 64 + 1, dtype=jnp.bool_)
     mask = mask.at[actions].set(TRUE)
 
     # castling
-    mask = mask.at[2364].set(jax.lax.select(can_castle_queen_side(), TRUE, mask[2364]))
-    mask = mask.at[2367].set(jax.lax.select(can_castle_king_side(), TRUE, mask[2367]))
+    mask = mask.at[2064].set(jax.lax.select(can_castle_queen_side(), TRUE, mask[2064]))
+    mask = mask.at[2096].set(jax.lax.select(can_castle_king_side(), TRUE, mask[2096]))
 
     # set en passant
     actions = legal_en_passants()
     mask = mask.at[actions].set(TRUE)
 
     # set underpromotions
-    actions = legal_underpromotions(mask)
-    mask = mask.at[actions].set(TRUE)
+    #actions = legal_underpromotions(mask)
+    #mask = mask.at[actions].set(TRUE)
 
     return mask[:-1]
 
